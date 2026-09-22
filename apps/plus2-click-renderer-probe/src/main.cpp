@@ -5,18 +5,16 @@
 #include <cstdint>
 
 #include "M5BuzzerToneOutput.h"
+#include "PcmS8Sample.h"
 
 namespace {
 constexpr uint32_t SERIAL_BAUD = 115200;
 constexpr uint32_t SAMPLE_RATE_HZ = 16000;
 constexpr uint32_t CLICK_DURATION_MS = 45;
-constexpr uint32_t BURST_INTERVAL_MS = 10;
-constexpr uint8_t BURST_TRIGGER_COUNT = 8;
 constexpr size_t CLICK_SAMPLE_COUNT =
     SAMPLE_RATE_HZ * CLICK_DURATION_MS / 1000;
 constexpr float TONE_FREQUENCY_HZ = 294.0f;
 constexpr uint8_t OUTPUT_VOLUME = 96;
-constexpr int SPEAKER_CHANNEL = 0;
 constexpr float FULL_CYCLE_RADIANS = 6.28318530718f;
 
 enum class Renderer : uint8_t {
@@ -29,11 +27,18 @@ M5BuzzerToneOutput toneOutput;
 Renderer selectedRenderer = Renderer::SawTone;
 int8_t noiseClick[CLICK_SAMPLE_COUNT];
 int8_t woodClick[CLICK_SAMPLE_COUNT];
+const PcmS8Sample noiseSample = {
+    noiseClick,
+    CLICK_SAMPLE_COUNT,
+    SAMPLE_RATE_HZ,
+};
+const PcmS8Sample woodSample = {
+    woodClick,
+    CLICK_SAMPLE_COUNT,
+    SAMPLE_RATE_HZ,
+};
 uint32_t toneStopAtMs = 0;
 bool toneActive = false;
-uint32_t nextBurstAtMs = 0;
-uint8_t burstTriggerIndex = 0;
-bool burstActive = false;
 
 const char* rendererName(Renderer renderer) {
   switch (renderer) {
@@ -87,7 +92,7 @@ void drawScreen(const char* status) {
   M5.Display.printf("Length: %lu ms\n",
                     static_cast<unsigned long>(CLICK_DURATION_MS));
   M5.Display.println();
-  M5.Display.println("A: overlap burst");
+  M5.Display.println("A: trigger click");
   M5.Display.println("B: next renderer");
   M5.Display.println();
   M5.Display.printf("Status: %s\n", status);
@@ -100,7 +105,7 @@ void stopToneWhenDue(uint32_t nowMs) {
   toneActive = false;
 }
 
-bool triggerSelected(uint32_t nowMs, uint8_t burstIndex) {
+bool triggerSelected(uint32_t nowMs) {
   toneOutput.stop();
   toneActive = false;
 
@@ -112,63 +117,28 @@ bool triggerSelected(uint32_t nowMs, uint8_t burstIndex) {
       toneStopAtMs = nowMs + CLICK_DURATION_MS;
       break;
     case Renderer::NoisePcm:
-      started = M5.Speaker.playRaw(
-          noiseClick, CLICK_SAMPLE_COUNT, SAMPLE_RATE_HZ, false, 1,
-          SPEAKER_CHANNEL, true);
+      started = toneOutput.playSample(noiseSample);
       break;
     case Renderer::WoodPcm:
-      started = M5.Speaker.playRaw(
-          woodClick, CLICK_SAMPLE_COUNT, SAMPLE_RATE_HZ, false, 1,
-          SPEAKER_CHANNEL, true);
+      started = toneOutput.playSample(woodSample);
       break;
   }
 
   Serial.printf(
       "click_probe: action=trigger renderer=%s duration_ms=%lu "
-      "sample_rate_hz=%lu samples=%u burst_index=%u ok=%s now_ms=%lu\n",
+      "sample_rate_hz=%lu samples=%u ok=%s now_ms=%lu\n",
       rendererName(selectedRenderer),
       static_cast<unsigned long>(CLICK_DURATION_MS),
       static_cast<unsigned long>(SAMPLE_RATE_HZ),
-      static_cast<unsigned>(CLICK_SAMPLE_COUNT), burstIndex,
-      started ? "yes" : "no",
+      static_cast<unsigned>(CLICK_SAMPLE_COUNT), started ? "yes" : "no",
       static_cast<unsigned long>(nowMs));
+  drawScreen(started ? "triggered" : "failed");
   return started;
-}
-
-void startBurst() {
-  burstActive = true;
-  burstTriggerIndex = 0;
-  Serial.printf(
-      "click_probe: action=burst_start renderer=%s count=%u interval_ms=%lu\n",
-      rendererName(selectedRenderer), BURST_TRIGGER_COUNT,
-      static_cast<unsigned long>(BURST_INTERVAL_MS));
-  drawScreen("burst running");
-  // Start the timing window after display work so redraw latency is not
-  // mistaken for audio scheduling jitter.
-  nextBurstAtMs = millis();
-}
-
-void serviceBurst(uint32_t nowMs) {
-  if (!burstActive || static_cast<int32_t>(nowMs - nextBurstAtMs) < 0) return;
-
-  burstTriggerIndex++;
-  triggerSelected(nowMs, burstTriggerIndex);
-
-  if (burstTriggerIndex >= BURST_TRIGGER_COUNT) {
-    burstActive = false;
-    Serial.printf("click_probe: action=burst_complete renderer=%s\n",
-                  rendererName(selectedRenderer));
-    drawScreen("burst complete");
-    return;
-  }
-
-  nextBurstAtMs += BURST_INTERVAL_MS;
 }
 
 void selectNextRenderer() {
   toneOutput.stop();
   toneActive = false;
-  burstActive = false;
   const uint8_t next =
       (static_cast<uint8_t>(selectedRenderer) + 1) % 3;
   selectedRenderer = static_cast<Renderer>(next);
@@ -209,10 +179,8 @@ void loop() {
   const uint32_t nowMs = millis();
   stopToneWhenDue(nowMs);
 
-  if (M5.BtnA.wasPressed()) startBurst();
+  if (M5.BtnA.wasPressed()) triggerSelected(nowMs);
   if (M5.BtnB.wasClicked()) selectNextRenderer();
-
-  serviceBurst(nowMs);
 
   delay(1);
 }

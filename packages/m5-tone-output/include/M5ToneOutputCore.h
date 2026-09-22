@@ -2,6 +2,7 @@
 
 #include <cstdint>
 
+#include "PcmS8Sample.h"
 #include "ToneWaveform.h"
 #include "VoiceOutput.h"
 
@@ -33,6 +34,7 @@ public:
   bool isPlaying() const override;
 
   bool startTone(float frequencyHz);
+  bool playSample(const PcmS8Sample& sample);
   void stop();
   void setVolume(uint8_t volume);
   uint8_t volume() const;
@@ -47,7 +49,6 @@ private:
   static constexpr int SPEAKER_CHANNEL = 0;
 
   bool initialized_ = false;
-  bool playing_ = false;
   uint8_t volume_;
   VelocityVolumeRange velocityVolumeRange_;
   ToneWaveform waveform_;

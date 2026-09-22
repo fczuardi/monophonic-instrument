@@ -18,7 +18,6 @@ void M5ToneOutputCore::begin() {
   M5.Speaker.begin();
   M5.Speaker.setVolume(volume_);
   initialized_ = true;
-  playing_ = false;
 }
 
 void M5ToneOutputCore::end() {
@@ -45,8 +44,23 @@ bool M5ToneOutputCore::startTone(float frequencyHz) {
       waveformSamples.samples,
       waveformSamples.sampleCount);
 
-  playing_ = toneStarted;
   return toneStarted;
+}
+
+bool M5ToneOutputCore::playSample(const PcmS8Sample& sample) {
+  if (!initialized_ || sample.data == nullptr || sample.sampleCount == 0 ||
+      sample.sampleRateHz == 0) {
+    return false;
+  }
+
+  return M5.Speaker.playRaw(
+      sample.data,
+      sample.sampleCount,
+      sample.sampleRateHz,
+      false,
+      1,
+      SPEAKER_CHANNEL,
+      true);
 }
 
 bool M5ToneOutputCore::startNote(
@@ -65,7 +79,6 @@ void M5ToneOutputCore::stop() {
   }
 
   M5.Speaker.stop(SPEAKER_CHANNEL);
-  playing_ = false;
 }
 
 void M5ToneOutputCore::setVolume(uint8_t volume) {
@@ -105,7 +118,7 @@ void M5ToneOutputCore::stopNote() {
 }
 
 bool M5ToneOutputCore::isPlaying() const {
-  return playing_;
+  return initialized_ && M5.Speaker.isPlaying(SPEAKER_CHANNEL) > 0;
 }
 
 void M5ToneOutputCore::setWaveform(ToneWaveform waveform) {

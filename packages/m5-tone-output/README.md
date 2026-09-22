@@ -6,7 +6,7 @@ the embedded music experiments.
 Current public classes:
 
 - `M5ToneOutputCore`: shared M5Unified tone playback, waveform, volume, and
-  velocity-to-volume behavior.
+  velocity-to-volume behavior, plus mono signed 8-bit PCM one-shots.
 - `M5BuzzerToneOutput`: M5StickC Plus2 buzzer configuration backed by
   `M5ToneOutputCore`.
 - `M5CoreGrayToneOutput`: M5Stack Core Gray internal speaker defaults backed by
@@ -18,8 +18,36 @@ on `fcz2/monophonic-instrument`, so registry consumers can install
 
 ```ini
 lib_deps =
-  fcz2/m5-tone-output@0.1.3
+  fcz2/m5-tone-output@0.1.4
 ```
 
 The package will also host regular M5 speaker output classes, starting with the
 Core Gray speaker backend.
+
+## PCM one-shots
+
+`PcmS8Sample` describes a fixed mono signed 8-bit PCM buffer without owning or
+copying it:
+
+```cpp
+const int8_t clickData[] = {0, 48, -32, 12, 0};
+const PcmS8Sample click = {
+    clickData,
+    sizeof(clickData) / sizeof(clickData[0]),
+    16000,
+};
+
+output.playSample(click);
+```
+
+`playSample()` uses the same M5Unified speaker configuration, volume, and
+virtual channel as tone playback. A new tone or sample replaces current output
+on that channel. The data pointer must remain valid and unchanged until the
+sample finishes or `stop()` is called. Playback performs no allocation,
+filesystem access, or format decoding.
+
+This capability intentionally stays on the concrete M5 output layer. It is not
+part of the note-oriented `VoiceOutput` contract, and the package does not own
+musical click sounds or envelope policy.
+
+`PcmS8Sample` and `playSample()` are available starting with `0.1.4`.
