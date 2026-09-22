@@ -67,7 +67,7 @@ jobs:
             platformio-publish-${{ runner.os }}-
 
       - name: Install PlatformIO
-        run: python -m pip install platformio==6.1.19
+        run: python -m pip install platformio==6.2.0
 
       - name: Run package tests
         if: steps.package.outputs.test_command != ''
