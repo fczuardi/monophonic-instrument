@@ -2,14 +2,15 @@
 
 #include <M5Unified.h>
 
-M5BuzzerToneOutput::M5BuzzerToneOutput()
+M5BuzzerToneOutput::M5BuzzerToneOutput(AudioIdlePolicy idlePolicy)
     : M5ToneOutputCore(
           SPEAKER_VOLUME,
           {MIN_VELOCITY_VOLUME, MAX_VELOCITY_VOLUME},
-          ToneWaveform::Saw32) {
+          ToneWaveform::Saw32,
+          idlePolicy) {
 }
 
-void M5BuzzerToneOutput::begin() {
+bool M5BuzzerToneOutput::begin() {
   auto config = M5.Speaker.config();
   config.buzzer = true;
   config.pin_data_out = BUZZER_GPIO_PIN;
@@ -17,5 +18,5 @@ void M5BuzzerToneOutput::begin() {
   config.magnification = SPEAKER_MAGNIFICATION;
   M5.Speaker.config(config);
 
-  M5ToneOutputCore::begin();
+  return M5ToneOutputCore::begin();
 }

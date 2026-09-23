@@ -30,15 +30,19 @@ feature should eventually replace that workaround.
 Musical sound recipes, accent selection, and judgments about useful frequency
 ranges remain application concerns and do not move into `m5-tone-output`.
 
-## Stage 1: dedicated reproduction probe
+## Implementation decision
 
-Add a small M5StickC Plus2 app that uses the local package and can switch
-between two policies without reflashing:
+The metronome has already reproduced the problem and demonstrated the useful
+solution. No additional probe is required before changing the package. Add the
+idle policy directly to `m5-tone-output`, then use the metronome as its primary
+hardware validation consumer.
+
+Expose two policies:
 
 - `stop when idle`: current 0.1.4 behavior;
 - `keep alive`: loop zero-valued signed 8-bit PCM on a separate channel.
 
-The probe should exercise at least:
+The implementation and its validation should exercise at least:
 
 - a zero-valued sample, to reveal lifecycle transients without musical PCM;
 - a low-frequency damped sample, where the transient previously dominated;
@@ -51,9 +55,9 @@ Serial records must identify policy, source sample, volume, output channel,
 request success, and time. Acoustic conclusions remain human observations;
 serial success cannot measure physical onset or transient amplitude.
 
-## Stage 2: lifecycle and coexistence checks
+## Lifecycle and coexistence checks
 
-Before proposing an API, establish:
+Implement the small API first, then use these checks to refine it:
 
 1. whether a zero loop reliably prevents the transient after long idle periods;
 2. whether channel 1 can be reserved without interfering with channel-0 tones
@@ -68,10 +72,9 @@ Before proposing an API, establish:
 Power cost may initially be recorded qualitatively if current measurement is
 not available, but it must remain an explicit tradeoff.
 
-## Candidate package contract
+## Initial package contract
 
-If the probe validates the behavior, prefer an explicit opt-in policy with the
-current behavior as the backward-compatible default:
+Start with an explicit policy:
 
 ```cpp
 enum class AudioIdlePolicy : uint8_t {
@@ -80,11 +83,12 @@ enum class AudioIdlePolicy : uint8_t {
 };
 ```
 
-Configuration may be supplied at construction or before `begin()`. The final
-shape should make ownership clear without exposing raw M5Unified channels.
-Required semantics are:
+The initial implementation may choose construction or pre-`begin()`
+configuration according to whichever keeps the code simplest. Backward
+compatibility with 0.1.4 is not a constraint; update every in-workspace consumer
+if the clearer API breaks it. Semantics are:
 
-- `StopWhenIdle` matches version 0.1.4;
+- `StopWhenIdle` allows the speaker path to idle;
 - `KeepAlive` owns and maintains the silent backend channel;
 - `stop()` stops the musical channel but preserves the configured idle policy;
 - `end()` always stops both musical and keep-alive channels;
@@ -94,7 +98,7 @@ Required semantics are:
 The channel number and silence-buffer details should remain implementation
 details unless hardware testing proves they must be configurable.
 
-## Stage 3: verification and release
+## Verification and release
 
 After the contract is implemented:
 
@@ -103,14 +107,46 @@ just check
 pio run -d ci/consumers/m5-tone-output
 ```
 
-Also rebuild existing tone/instrument probes to protect source compatibility,
-then perform the dedicated hardware matrix. A new package version should be
-published only after those checks and its README documents the power/latency
-tradeoff.
+Update and rebuild existing tone/instrument probes when the API changes, then
+perform the relevant hardware checks. Publish a new package snapshot once the
+implementation works well enough for the metronome; further breaking revisions
+remain acceptable.
 
 Finally, update the metronome to consume the released policy and remove all
 direct `M5.Speaker` channel ownership from `MetronomeAudio`. That consumer build
 and hardware run are the end-to-end acceptance test for the boundary.
+
+## Implementation checkpoint
+
+The first API is now implemented directly:
+
+- `AudioIdlePolicy::{StopWhenIdle, KeepAlive}`;
+- policy selection in the concrete output constructors;
+- `begin()` reports whether the requested policy was established;
+- `setIdlePolicy()` switches behavior before or after startup;
+- `stop()` affects only the musical channel;
+- `end()` stops both the musical and keep-alive channels;
+- the silent buffer and channel ownership remain private to
+  `M5ToneOutputCore`.
+
+The clean package consumer compiles both policies and runtime switching. The
+metronome also builds against the sibling package with its direct
+`M5.Speaker.playRaw()` workaround removed; RAM remains 16.4%. Hardware listening
+is now the remaining check that package-owned keep-alive preserves the already
+validated absence of the electrical start transient.
+
+## Hardware result
+
+The migrated metronome reported
+`audio: idle_policy=keep_alive ok=yes` on the M5StickC Plus2. The electrical
+start transient remained absent, master-gain changes affected both the
+plain-1600 accent and mid-tick regular click, and volume zero was silent while
+PCM requests continued normally.
+
+Beat dispatch remained on its exact 500 ms phase throughout the supplied idle
+and volume-adjustment logs, with ordinary beats reporting `elapsed=1` and every
+sample request reporting `ok=yes`. This validates the package-owned policy and
+the removal of direct channel ownership from the application.
 
 ## Non-goals
 

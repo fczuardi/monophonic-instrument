@@ -57,6 +57,17 @@ musical click sounds or envelope policy.
 Version 0.1.4 starts finite PCM one-shots on demand and allows the M5Unified
 speaker path to become idle afterward. M5StickC Plus2 metronome testing found
 that restarting output after idle can contribute a hardware transition that is
-not present in the PCM buffer and may dominate quiet sounds. A silent
-keep-alive policy is under investigation; applications should not treat that
-experimental channel workaround as part of the current package contract.
+not present in the PCM buffer and may dominate quiet sounds. The package now
+owns an explicit silent keep-alive policy, replacing the metronome's direct
+channel workaround:
+
+```cpp
+M5BuzzerToneOutput output(AudioIdlePolicy::KeepAlive);
+const bool ready = output.begin();
+```
+
+`StopWhenIdle` remains available where power saving or the natural speaker
+lifecycle is preferable. `setIdlePolicy()` can switch behavior after startup.
+`stop()` stops the musical channel while preserving keep-alive; `end()` stops
+both channels and releases the speaker backend. Both `begin()` and
+`setIdlePolicy()` report whether the requested policy was established.

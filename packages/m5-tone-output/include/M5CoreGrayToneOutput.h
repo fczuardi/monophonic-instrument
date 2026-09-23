@@ -8,7 +8,8 @@
 // M5Stack Core Gray internal speaker output backed by M5Unified.
 class M5CoreGrayToneOutput : public M5ToneOutputCore {
 public:
-  M5CoreGrayToneOutput();
+  explicit M5CoreGrayToneOutput(
+      AudioIdlePolicy idlePolicy = AudioIdlePolicy::StopWhenIdle);
 
 private:
   static constexpr uint8_t SPEAKER_VOLUME = 35;

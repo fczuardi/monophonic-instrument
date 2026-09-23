@@ -8,16 +8,19 @@
 M5ToneOutputCore::M5ToneOutputCore(
     uint8_t initialVolume,
     VelocityVolumeRange velocityVolumeRange,
-    ToneWaveform waveform)
+    ToneWaveform waveform,
+    AudioIdlePolicy idlePolicy)
     : volume_(initialVolume),
       velocityVolumeRange_(velocityVolumeRange),
-      waveform_(waveform) {
+      waveform_(waveform),
+      idlePolicy_(idlePolicy) {
 }
 
-void M5ToneOutputCore::begin() {
+bool M5ToneOutputCore::begin() {
   M5.Speaker.begin();
   M5.Speaker.setVolume(volume_);
   initialized_ = true;
+  return idlePolicy_ != AudioIdlePolicy::KeepAlive || startKeepAlive();
 }
 
 void M5ToneOutputCore::end() {
@@ -26,6 +29,7 @@ void M5ToneOutputCore::end() {
   }
 
   stop();
+  stopKeepAlive();
   M5.Speaker.end();
   initialized_ = false;
 }
@@ -90,6 +94,35 @@ void M5ToneOutputCore::setVolume(uint8_t volume) {
 
 uint8_t M5ToneOutputCore::volume() const {
   return volume_;
+}
+
+bool M5ToneOutputCore::setIdlePolicy(AudioIdlePolicy idlePolicy) {
+  idlePolicy_ = idlePolicy;
+  if (!initialized_) return true;
+
+  if (idlePolicy_ == AudioIdlePolicy::KeepAlive) return startKeepAlive();
+
+  stopKeepAlive();
+  return true;
+}
+
+AudioIdlePolicy M5ToneOutputCore::idlePolicy() const {
+  return idlePolicy_;
+}
+
+bool M5ToneOutputCore::startKeepAlive() {
+  if (keepAliveActive_) return true;
+
+  keepAliveActive_ = M5.Speaker.playRaw(
+      keepAliveSilence_, KEEP_ALIVE_SAMPLE_COUNT, KEEP_ALIVE_SAMPLE_RATE_HZ,
+      false, UINT32_MAX, KEEP_ALIVE_CHANNEL, true);
+  return keepAliveActive_;
+}
+
+void M5ToneOutputCore::stopKeepAlive() {
+  if (!keepAliveActive_) return;
+  M5.Speaker.stop(KEEP_ALIVE_CHANNEL);
+  keepAliveActive_ = false;
 }
 
 void M5ToneOutputCore::setVelocityVolumeRange(VelocityVolumeRange range) {

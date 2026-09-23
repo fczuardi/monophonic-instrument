@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <M5Unified.h>
 
+#include "AudioIdlePolicy.h"
 #include "M5BuzzerToneOutput.h"
 #include "M5CoreGrayToneOutput.h"
 #include "MonophonicInstrument.h"
@@ -9,6 +10,7 @@
 
 MonophonicInstrument instrument;
 M5BuzzerToneOutput output;
+M5BuzzerToneOutput keepAliveOutput(AudioIdlePolicy::KeepAlive);
 M5CoreGrayToneOutput coreGrayOutput;
 MonophonicInstrumentSink sink(instrument, output);
 const int8_t clickData[] = {0, 48, -32, 12, 0};
@@ -19,6 +21,10 @@ const PcmS8Sample click = {
 };
 
 void setup() {
+  keepAliveOutput.begin();
+  keepAliveOutput.setIdlePolicy(AudioIdlePolicy::StopWhenIdle);
+  keepAliveOutput.setIdlePolicy(AudioIdlePolicy::KeepAlive);
+  keepAliveOutput.end();
   output.setWaveform(instrument.waveform());
   output.setVelocityVolumeRange({64, 128});
   coreGrayOutput.setWaveform(ToneWaveform::Square32);

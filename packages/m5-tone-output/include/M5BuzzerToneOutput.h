@@ -8,9 +8,10 @@
 // M5StickC Plus2 buzzer output backed by M5Unified's Speaker abstraction.
 class M5BuzzerToneOutput : public M5ToneOutputCore {
 public:
-  M5BuzzerToneOutput();
+  explicit M5BuzzerToneOutput(
+      AudioIdlePolicy idlePolicy = AudioIdlePolicy::StopWhenIdle);
 
-  void begin();
+  bool begin();
 
 private:
   static constexpr uint8_t BUZZER_GPIO_PIN = 2;
