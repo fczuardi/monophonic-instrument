@@ -51,3 +51,12 @@ part of the note-oriented `VoiceOutput` contract, and the package does not own
 musical click sounds or envelope policy.
 
 `PcmS8Sample` and `playSample()` are available starting with `0.1.4`.
+
+### PCM idle behavior
+
+Version 0.1.4 starts finite PCM one-shots on demand and allows the M5Unified
+speaker path to become idle afterward. M5StickC Plus2 metronome testing found
+that restarting output after idle can contribute a hardware transition that is
+not present in the PCM buffer and may dominate quiet sounds. A silent
+keep-alive policy is under investigation; applications should not treat that
+experimental channel workaround as part of the current package contract.
